@@ -14,7 +14,9 @@ import weechat
 SCRIPT_NAME = "ponte_tg"
 BOT = "uliak"
 CANALI = {"#linuxoltre", "#distro-test"}
-RIGA_TG = re.compile(r"^\[TG\] (📢 )?<([^>]+)> (.*)$", re.S)
+# Testa della riga, cercata sul testo senza colori: da ULIAK arriva anche
+# con grassetto e colore ("[TG]" in blu)
+TESTA_TG = re.compile(r"^\[TG\] (📢 )?<([^>]+)> ")
 
 
 def colore_nick(nome):
@@ -29,13 +31,19 @@ def riscrivi(data, line):
     canale = line.get("buffer_name", "").rsplit(".", 1)[-1].lower()
     if canale not in CANALI:
         return {}
-    trovato = RIGA_TG.match(line.get("message", ""))
+    messaggio = line.get("message", "")
+    trovato = TESTA_TG.match(weechat.string_remove_color(messaggio, ""))
     if not trovato:
         return {}
-    emoji, nome, testo = trovato.groups()
-    return {"prefix": (emoji or "") + colore_nick(nome) + nome, "message": testo}
+    emoji, nome = trovato.groups()
+    # Il resto del messaggio con la sua formattazione: si taglia dove finisce
+    # la testa visibile (che termina con lo spazio, dopo i codici di chiusura)
+    for fine in range(len(trovato.group(0)), len(messaggio) + 1):
+        if weechat.string_remove_color(messaggio[:fine], "") == trovato.group(0):
+            break
+    return {"prefix": (emoji or "") + colore_nick(nome) + nome, "message": messaggio[fine:]}
 
 
-if weechat.register(SCRIPT_NAME, "LinuxOltre", "1.0", "MIT",
+if weechat.register(SCRIPT_NAME, "LinuxOltre", "1.1", "MIT",
                     "Messaggi del gruppo Telegram di #LinuxOltre col nome di chi scrive invece di ULIAK", "", ""):
     weechat.hook_line("formatted", "*", "irc_privmsg", "riscrivi", "")

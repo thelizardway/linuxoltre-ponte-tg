@@ -1,5 +1,5 @@
 __module_name__ = "ponte_tg"
-__module_version__ = "1.0"
+__module_version__ = "1.1"
 __module_description__ = "Messaggi del gruppo Telegram di #LinuxOltre col nome di chi scrive invece di ULIAK"
 
 # Le righe che ULIAK porta dal gruppo Telegram ("<ULIAK> [TG] <Mario> ciao")
@@ -14,7 +14,9 @@ import hexchat
 
 BOT = "uliak"
 CANALI = {"#linuxoltre", "#distro-test"}
-RIGA_TG = re.compile(r"^\[TG\] (📢 )?<([^>]+)> (.*)$", re.S)
+# Testa della riga, cercata sul testo senza colori: da ULIAK arriva anche
+# con grassetto e colore ("[TG]" in blu)
+TESTA_TG = re.compile(r"^\[TG\] (📢 )?<([^>]+)> ")
 EVENTI = ("Channel Message", "Channel Msg Hilight")
 
 
@@ -23,11 +25,17 @@ def riscrivi(word, word_eol, evento):
         return hexchat.EAT_NONE
     if (hexchat.get_info("channel") or "").lower() not in CANALI:
         return hexchat.EAT_NONE
-    trovato = RIGA_TG.match(word[1])
+    messaggio = word[1]
+    trovato = TESTA_TG.match(hexchat.strip(messaggio))
     if not trovato:
         return hexchat.EAT_NONE
+    # Il resto del messaggio con la sua formattazione: si taglia dove finisce
+    # la testa visibile (che termina con lo spazio, dopo i codici di chiusura)
+    for fine in range(len(trovato.group(0)), len(messaggio) + 1):
+        if hexchat.strip(messaggio[:fine]) == trovato.group(0):
+            break
     nome = (trovato.group(1) or "") + trovato.group(2)
-    hexchat.emit_print(evento, nome, trovato.group(3))
+    hexchat.emit_print(evento, nome, messaggio[fine:])
     return hexchat.EAT_ALL
 
 
